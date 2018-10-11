@@ -49,6 +49,13 @@ class Board(object):
         if single:
             elim_set = functools.reduce(set.union, single)
             return start_set.difference(elim_set)
+
+    @staticmethod
+    def _to_block(row, col):
+        # return the slices that extract the appropriate block
+        block_x = slice(row//3 * 3, row//3 * 3 + 3)
+        block_y = slice(col//3 * 3, col//3 * 3 + 3)
+        return block_x, block_y
         
     def eliminate(self):
         # go through the individual blocks, rows, columns and
@@ -63,8 +70,7 @@ class Board(object):
                                        self.possible[:, col])
                 if diff:
                     self.possible[row, col] = diff
-                block_x = slice(row//3 * 3, row//3 * 3 + 3)
-                block_y = slice(col//3 * 3, col//3 * 3 + 3)
+                block_x, block_y = self._to_block(row, col)
                 block = self.possible[block_x, block_y]
                 diff = self._elim_diff(self.possible[row, col], block)
                 if diff:
@@ -74,6 +80,8 @@ class Board(object):
         for row in range(0, 9):
             for col in range(0, 9):
                 possible = self.possible[row, col]
+                if len(possible) == 1:
+                    continue
                 # first compare with other items in the row.
                 eliminated = set()
                 for item in possible:
@@ -88,11 +96,63 @@ class Board(object):
                 # there is only one possible.
                 diff = possible.difference(eliminated)
                 if len(diff) == 1:
-                    msg = '[{},{}] can only contain {}'.format(
+                    msg = 'Eliminating in row: [{},{}] can only contain {}'.format(
                         row, col, diff
                     )
                     print(msg)
                     self.possible[row, col] = diff
+        for col in range(0, 9):
+            for row in range(0, 9):
+                possible = self.possible[row, col]
+                if len(possible) == 1:
+                    continue
+                # first compare with other items in the row.
+                eliminated = set()
+                for item in possible:
+                    for other_row in range(0, 9):
+                        if other_row == row:
+                            continue
+                        if item in eliminated:
+                            break
+                        if item in self.possible[other_row, col]:
+                            eliminated.add(item)
+                # if everything but one has been eliminated
+                # there is only one possible.
+                diff = possible.difference(eliminated)
+                if len(diff) == 1:
+                    msg = 'Eliminating in column: [{},{}] can only contain {}'.format(
+                        row, col, diff
+                    )
+                    print(msg)
+                    self.possible[row, col] = diff
+
+        for row in range(0, 9):
+            for col in range(0, 9):
+                possible = self.possible[row, col]
+                if len(possible) == 1:
+                    continue
+                # compare with other items in block
+                eliminated = set()
+                block_x, block_y = self._to_block(row, col)
+                block = self.possible[block_x, block_y].ravel()
+                for item in possible:
+                    for other_block in block:
+                        if other_block == possible:
+                            continue
+                        if item in eliminated:
+                            continue
+                        if item in other_block:
+                            eliminated.add(item)
+                # if everything but one has been eliminated
+                # there is only one possible.
+                diff = possible.difference(eliminated)
+                if len(diff) == 1:
+                    msg = 'Eliminating in block: [{},{}] can only contain {}'.format(
+                        row, col, diff
+                    )
+                    print(msg)
+                    self.possible[row, col] = diff
+
         # now for any cell that only has one item left,
         # set that board cell to that item.
         for row in range(0, 9):
@@ -100,9 +160,42 @@ class Board(object):
                 possible = self.possible[row, col]
                 if len(possible) == 1:
                     self.board[row, col] = list(possible)[0]
-                
-                        
-        
+
+    @property
+    def solved(self):
+        # all rows, columns, blocks must contain all 9
+        valid = set(range(1, 10))
+        ok = True
+        for r in range(0, 9):
+            ok &= set(self.board[r]) == valid
+            ok &= set(self.board[:, r]) == valid
+        # check blocks
+        for r in (0, 3, 6):
+            for c in (0, 3, 6):
+                block_x, block_y = self._to_block(r, c)
+                block = self.board[block_x, block_y].ravel()
+                ok &= set(block) == valid
+        return ok
+
+    def __eq__(self, other):
+        # disregard the possible values!
+        # only check the board positions
+        return np.allclose(self.board, other.board)
+
+    def __hash__(self):
+        return hash(self.board)
+
+    def solve(self):
+        # need to check if previous board position
+        # is the same as current, and stop otherwise.
+        lastboard = self.board.copy()
+        while True:
+            self.eliminate()
+            if self.solved:
+                break
+            if np.allclose(self.board, lastboard):
+                raise ValueError('Cannot be solved by simple elimination')
+            lastboard = self.board.copy()
 
 if __name__ == '__main__':
     b = Board.from_file('position.txt')
