@@ -24,6 +24,8 @@ class Board(object):
                     # ignore any non-ints
                     # don't bother eliminating yet
                     self.possible[idx, jdx] = copy.copy(START)
+        msg = 'Board is invalid!\n{}'.format(self)
+        assert self.valid, msg
         
 
     def __str__(self):
@@ -36,10 +38,19 @@ class Board(object):
     @staticmethod
     def from_file(fn):
         with open(fn, 'r') as fh:
-            lines = fh.readlines()
-            position = [l.strip() for l in lines if l.strip()]
-            return Board(position)
+            lines = fh.read()
+            return Board.from_string(lines)
 
+    @staticmethod
+    def from_string(s):
+        # s can start and end with whitespace
+        # s can contain empty lines
+        # s can use any non-int non-whitespace character
+        # for the blanks
+        lines = s.strip().split("\n")
+        position = [l.strip() for l in lines if l.strip()]
+        return Board(position)
+        
     @staticmethod
     def _elim_diff(start_set, others):
         if len(start_set) == 1:
@@ -177,20 +188,40 @@ class Board(object):
                 ok &= set(block) == valid
         return ok
 
-    def __eq__(self, other):
-        # disregard the possible values!
-        # only check the board positions
-        return np.allclose(self.board, other.board)
 
-    def __hash__(self):
-        return hash(self.board)
-
+    @property
+    def valid(self):
+        # a board is valid even if unsolved,
+        # as long as it has no duplicates in row, column or block
+        valid = set(range(1, 10))
+        def count(a):
+            d = {}
+            for item in a:
+                if item not in valid:
+                    continue
+                d.setdefault(item, 0)
+                d[item] += 1
+            return d
+        ok = True
+        for r in range(0, 9):
+            ok &= set(count(self.board[r]).values()) == {1}
+            ok &= set(count(self.board[:, r]).values()) == {1}
+        # check blocks
+        for r in (0, 3, 6):
+            for c in (0, 3, 6):
+                block_x, block_y = self._to_block(r, c)
+                block = self.board[block_x, block_y].ravel()
+                ok &= set(count(block).values()) == {1}
+        return ok
+    
     def solve(self):
         # need to check if previous board position
         # is the same as current, and stop otherwise.
         lastboard = self.board.copy()
         while True:
             self.eliminate()
+            msg = 'Board reached invalid state!\n{}'.format(self)
+            assert self.valid, msg
             if self.solved:
                 break
             if np.allclose(self.board, lastboard):
