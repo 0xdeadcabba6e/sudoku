@@ -55,24 +55,18 @@ class Board(object):
         # eliminate
         for row in range(0, 9):
             for col in range(0, 9):
-                thisitem = self.possible[row, col]
-                diff = self._elim_diff(thisitem, self.possible[row])
+                diff = self._elim_diff(self.possible[row, col],
+                                       self.possible[row])
                 if diff:
                     self.possible[row, col] = diff
-        for row in range(0, 9):
-            for col in range(0, 9):
-                thisitem = self.possible[row, col]
-                diff = self._elim_diff(thisitem, self.possible[:, col])
+                diff = self._elim_diff(self.possible[row, col],
+                                       self.possible[:, col])
                 if diff:
                     self.possible[row, col] = diff
-        # eliminate blocks. 
-        for row in range(0, 9):
-            for col in range(0, 9):
                 block_x = slice(row//3 * 3, row//3 * 3 + 3)
                 block_y = slice(col//3 * 3, col//3 * 3 + 3)
                 block = self.possible[block_x, block_y]
-                thisitem = self.possible[row, col]
-                diff = self._elim_diff(thisitem, block)
+                diff = self._elim_diff(self.possible[row, col], block)
                 if diff:
                     self.possible[row, col] = diff
         # If there are any items that can't be in any other cell,
@@ -99,6 +93,13 @@ class Board(object):
                     )
                     print(msg)
                     self.possible[row, col] = diff
+        # now for any cell that only has one item left,
+        # set that board cell to that item.
+        for row in range(0, 9):
+            for col in range(0, 9):
+                possible = self.possible[row, col]
+                if len(possible) == 1:
+                    self.board[row, col] = list(possible)[0]
                 
                         
         
